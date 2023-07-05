@@ -31,6 +31,7 @@ if __name__ == '__main__':
     walls_area_gross = []
     floors_heights = []
     floors_perims = []
+    floors_area = []
     doors_area = []
     windows_area = []
     cielings_area = []
@@ -84,8 +85,11 @@ if __name__ == '__main__':
                     rooflight_area += float(furniture.get('width')) * float(furniture.get('height'))                    
         
         wall_area_net = wall_area_gross - window_area - door_area
-        cieling_area = float(floor.get('areaWithInteriorWallsOnly')) - rooflight_area
-        
+
+        floor_area = float(floor.get('areaWithInteriorWallsOnly'))
+        cieling_area = floor_area - rooflight_area
+
+        floors_area.append(floor_area)
         cielings_area.append(cieling_area)
         floors_heights.append(wall_height)
         walls_area_net.append(wall_area_net)
@@ -95,6 +99,7 @@ if __name__ == '__main__':
         windows_area.append(window_area)
     
     values = {
+        'Floor Area' :   floors_area,
         'Cieling Area' : cielings_area,
         'Floor Height' : floors_heights, 
         'Net Wall Area' : walls_area_net,
@@ -118,7 +123,7 @@ if __name__ == '__main__':
         output += '\n' + key + ':' +  space_str[0:len(space_str) - (len(key)+1)]
         for elem in values[key]:
             output += str(elem)[0:8] + ' ' if len(str(elem)) > 9 else str(elem) + space_str[0:9-len(str(elem))]
-        if key == 'Door Area':
+        if key in ['Floor Height']:
             output += 'N/A'
         else:
             output += str(sum(values[key]))[0:9] if len(str(sum(values[key]))) > 10  else str(sum(values[key]))
