@@ -35,18 +35,19 @@ if __name__ == '__main__':
     doors_area = []
     windows_area = []
     cielings_area = []
+    floor_enum = ['Floor']
+    wall_index = 0
 
     floors = root.findall('interiorRoomPoints/floor')
     for floor in floors:
         
-        extern_wall_area = 0
         extern_perim = 0
         wall_height = 0
         window_area = 0
         nwalls = 0
         door_area = 0
         rooflight_area = 0
-        
+
         for wall in floor.findall('exploded/wall'):
             if wall.find('type').text == 'exterior':
                 points = wall.findall('point')
@@ -97,7 +98,11 @@ if __name__ == '__main__':
         floors_perims.append(extern_perim)
         doors_area.append(door_area)
         windows_area.append(window_area)
+        floor_enum.append(str(wall_index))
+
+        wall_index += 1
     
+    floor_enum.append('Total')
     values = {
         'Floor Area' :   floors_area,
         'Cieling Area' : cielings_area,
@@ -109,24 +114,23 @@ if __name__ == '__main__':
         'Perimeter' : floors_perims
     }
 
-    f = open('{}.txt'.format(root.get('name')).replace(' ', ''), 'w')
-    i = 0
-    space_str = '                 '
-    output = 'Floor:' + space_str[0:11] # 11 Spaces
-    while i < len(floors_heights):
-        output += str(i) + space_str[0:8] # 9 Spaces
-        i += 1
+    f = open('{}.html'.format(root.get('name')).replace(' ', ''), 'w')
+    output = '<table><tr>'
     
-    output += 'Total'
-
+    for floor in floor_enum:
+        output += f'<th>{floor}</th>'
+    output += '</tr>'
+    
     for key in values:
-        output += '\n' + key + ':' +  space_str[0:len(space_str) - (len(key)+1)]
+        output += f'<tr><td>{key}</td>'
         for elem in values[key]:
-            output += str(elem)[0:8] + ' ' if len(str(elem)) > 9 else str(elem) + space_str[0:9-len(str(elem))]
+            output += f'<td>{elem}</td>'
         if key in ['Floor Height']:
-            output += 'N/A'
+            output += '<td>N/A</td></tr>'
         else:
-            output += str(sum(values[key]))[0:9] if len(str(sum(values[key]))) > 10  else str(sum(values[key]))
+            output += f'<td>{sum(values[key])}</td></tr>'
+    
+    output += '</table>'
 
     f.write(output)
     f.close()
