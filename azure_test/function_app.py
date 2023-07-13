@@ -14,8 +14,8 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
     try:
 
         email = req._HttpRequest__params['email']
-        
-        if email not in []:
+        whitelist = os.environ['MP_WH_LIST'].split(',')
+        if email not in whitelist:
             return func.HttpResponse(status_code=200)
         
         root : ET.Element
@@ -121,11 +121,11 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
         for key in values:
             output += f'<tr><td>{key}</td>'
             for elem in values[key]:
-                output += f'<td>{elem}</td>'
+                output += f'<td>{round(elem, 2)}</td>'
             if key in ['Floor Height']:
                 output += '<td>N/A</td></tr>'
             else:
-                output += f'<td>{sum(values[key])}</td></tr>'
+                output += f'<td>{round(sum(values[key]), 2)}</td></tr>'
 
         output += '</table>'
 
