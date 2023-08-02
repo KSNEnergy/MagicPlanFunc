@@ -1,4 +1,3 @@
-from functools import reduce
 from math import sqrt
 import os
 import requests as rq
@@ -130,7 +129,13 @@ if __name__ == '__main__':
         room_points_list: list[tuple[float, float, str]]
         room_points_list = []
         room_points = floor.findall('floorRoom/point/values/value[@key="qcustomfield.e8660a0cq0.lo6b23iucno"]../../..')
-        window_keys = ['qcustomfield.bebb2096q0.5s6ahr5olj', 'qcustomfield.bebb2096q0.9pqleon5rmg', 'qcustomfield.bebb2096q0.h0serf6b2po', 'qcustomfield.bebb2096q0.q05mtrjuu18']
+        
+        window_keys = ['qcustomfield.bebb2096q0.5s6ahr5olj', 
+                       'qcustomfield.bebb2096q0.9pqleon5rmg', 
+                       'qcustomfield.bebb2096q0.h0serf6b2po', 
+                       'qcustomfield.bebb2096q0.q05mtrjuu18', 
+                       'qcustomfield.bebb2096q0.ofru5eoj50o']
+        
         windows_doors = floor.findall('symbolInstance')
         windows_doors = [window for window in windows_doors if 'W' in window.get('id')]
 
@@ -154,7 +159,7 @@ if __name__ == '__main__':
             window_elem = floor.find(f'exploded/window[@symbolInstance="{id}"]')
             area = float(window_elem.get('height')) * float(window_elem.get('width'))
             wall_type_win_area = f'W.A. in W.T. {wall_type}'
-            if wall_type_win_area not in window_door_table:
+            if wall_type_win_area not in window_door_table and wall_type_win_area != '':
                 window_door_table[wall_type_win_area] = empty_array.copy()
             window_door_table[wall_type_win_area][floor_index] += area
             
@@ -176,7 +181,8 @@ if __name__ == '__main__':
                 window_data_list[window_type_int].loc[shading_type_text, direction_text] += area
 
 
-        door_keys = ['qcustomfield.ddc14d2eq0.dge5jfv5gn8', 'qcustomfield.ddc14d2eq0.afcmuvtdagg']
+        door_keys = ['qcustomfield.ddc14d2eq0.dge5jfv5gn8', 
+                     'qcustomfield.ddc14d2eq0.afcmuvtdagg']
 
         for door in windows_doors:
             id = door.get('id')
@@ -190,6 +196,8 @@ if __name__ == '__main__':
                 wall_elem = door.find(f'values/value[@key="{key}"]')
                 if wall_elem != None:
                     break
+            if wall_elem == None:
+                continue
 
             wall_type = wall_elem.text[-1]
             door_elem = floor.find(f'exploded/door[@symbolInstance="{id}"]')
@@ -318,6 +326,10 @@ if __name__ == '__main__':
     
     floor_enum.append('Total')
     
+    for frame in window_data_list:
+        frame.loc['Total'] = frame.sum(numeric_only=True)
+        frame.loc[:,'Shading Total'] = frame.sum(numeric_only=True, axis=1)
+
     summary_values = {
         'Floor Area'                      : floors_area,
         'Cieling Area'                    : cielings_area,
