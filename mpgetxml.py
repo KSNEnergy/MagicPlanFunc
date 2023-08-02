@@ -2,6 +2,7 @@ from functools import reduce
 from math import sqrt
 import os
 import requests as rq
+import pandas as pd
 import json
 import xml.etree.ElementTree as ET
 
@@ -38,6 +39,12 @@ def create_table(dict : dict[str, list[float]], headers : list,
     
     output += '</table>'
     return output
+
+window_data = pd.DataFrame(None, columns=['North', 'North East', 'East', 'South East', 'South', 'South West', 'West', 'North West'])
+window_data_list = []
+
+for i in range(5):
+    window_data_list.append(window_data.copy())
 
 if __name__ == '__main__':
     
@@ -109,7 +116,7 @@ if __name__ == '__main__':
 
     floors = root.findall('interiorRoomPoints/floor')
     empty_array = [0] * len(floors)
-
+    
     for floor in floors:
         
         extern_perim = 0
@@ -124,14 +131,16 @@ if __name__ == '__main__':
         room_points_list = []
         room_points = floor.findall('floorRoom/point/values/value[@key="qcustomfield.e8660a0cq0.lo6b23iucno"]../../..')
         window_keys = ['qcustomfield.bebb2096q0.5s6ahr5olj', 'qcustomfield.bebb2096q0.9pqleon5rmg', 'qcustomfield.bebb2096q0.h0serf6b2po', 'qcustomfield.bebb2096q0.q05mtrjuu18']
-        windows = []
+        windows_doors = floor.findall('symbolInstance')
+        windows_doors = [window for window in windows_doors if 'W' in window.get('id')]
 
         window_door_table : dict[str, list[float]] = {}
-        for key in window_keys:
-            windows += floor.findall(f'symbolInstance/values/value[@key="{key}"]../..') 
     
-        for window in windows:
+        for window in windows_doors:
             id = window.get('id')
+
+            if window.find('values/value[@key="clonedFrom"]') == None:
+                continue
             if 'window' not in window.find('values/value[@key="clonedFrom"]').text:
                 continue
             wall_elem : ET.Element
@@ -141,34 +150,38 @@ if __name__ == '__main__':
                 if wall_elem != None:
                     break
             
-            wall_type = wall_elem.text[-1]
+            wall_type = wall_elem.text[-1] if wall_elem != None else ''
             window_elem = floor.find(f'exploded/window[@symbolInstance="{id}"]')
             area = float(window_elem.get('height')) * float(window_elem.get('width'))
             wall_type_win_area = f'W.A. in W.T. {wall_type}'
             if wall_type_win_area not in window_door_table:
                 window_door_table[wall_type_win_area] = empty_array.copy()
             window_door_table[wall_type_win_area][floor_index] += area
+            
             shading_type = window.find('values/value[@key="qcustomfield.bebb2096q0.vvvvtj3gbp8"]')
-            if shading_type != None:
-                shading_type = shading_type.text.replace('.', ' ') + ' Area'
-                if shading_type not in window_door_table:
-                    window_door_table[shading_type] = empty_array.copy()
-                window_door_table[shading_type][floor_index] += area
             window_type = window.find('values/value[@key="qcustomfield.bebb2096q2"]')
-            if window_type != None:
-                window_type = window_type.text.replace('.', ' ') + ' Area'  
-                if window_type not in window_door_table:
-                    window_door_table[window_type] = empty_array.copy()
-                window_door_table[window_type][floor_index] += area
+            direction = window.find('values/value[@key="qcustomfield.bebb2096q0.b8o7vbr534"]')
+            
+            if window_type != None and direction != None and \
+                not 'skylight' in window.find('values/value[@key="clonedFrom"]'):
+                shading_type_text = ''
+                if shading_type == None:
+                    shading_type_text = 'Average or Unknown 20 60'
+                else:
+                    shading_type_text = shading_type.text.replace('.', ' ')
+                direction_text = direction.text.replace('.', ' ')
+                window_type_int = int(window_type.text.split('Type.')[1][0]) - 1
+                if shading_type_text not in window_data_list[window_type_int].index:
+                    window_data_list[window_type_int].loc[shading_type_text] = [0] * 8
+                window_data_list[window_type_int].loc[shading_type_text, direction_text] += area
 
 
         door_keys = ['qcustomfield.ddc14d2eq0.dge5jfv5gn8', 'qcustomfield.ddc14d2eq0.afcmuvtdagg']
-        doors = []
-        for key in door_keys:
-            doors += floor.findall(f'symbolInstance/values/value[@key="{key}"]../..')
 
-        for door in doors:
+        for door in windows_doors:
             id = door.get('id')
+            if door.find('values/value[@key="clonedFrom"]') == None:
+                continue
             if 'door' not in door.find('values/value[@key="clonedFrom"]').text:
                 continue
             
@@ -185,6 +198,7 @@ if __name__ == '__main__':
             if w_t_area not in window_door_table:
                 window_door_table[w_t_area] = empty_array.copy()
             window_door_table[w_t_area][floor_index] += area
+        
         
         for room in room_points:
             points = room.findall('point/values/value[@key="qcustomfield.e8660a0cq0.lo6b23iucno"]../..')
@@ -303,7 +317,7 @@ if __name__ == '__main__':
         floor_index += 1
     
     floor_enum.append('Total')
-
+    
     summary_values = {
         'Floor Area'                      : floors_area,
         'Cieling Area'                    : cielings_area,
@@ -327,6 +341,12 @@ if __name__ == '__main__':
         'Flue'                            : flue_count,
         'Chimney'                         : chimney_count
     }
+    table_list = '<ol style="display:inline">'
+
+    for frame in window_data_list:
+        table_list += f'<li>{frame.to_html()}</li>' if not frame.empty else '<li><b>No Windows of This Type</b></li>'
+    
+    table_list += '</ol>'
 
     f = open('{}.html'.format(root.get('name')).replace(' ', ''), 'w')
     styling = "border=\"1\""
@@ -337,8 +357,8 @@ if __name__ == '__main__':
         {"<h1>Colour Area Table</h1>" + create_table(colours, floor_enum, styling=styling, colour_table=True) if len(colours) > 0 else ""} \
         <h1>Wall Types</h1> \
         {create_table(wall_types, floor_enum, styling=styling)} \
-        <h1>Window/Door Areas by Wall Type</h1> \
-        {create_table(window_door_table, floor_enum, styling=styling)} \
+        <h1>Window Tables</h1> \
+        {table_list} \
         <div>"""
 
     f.write(output)
