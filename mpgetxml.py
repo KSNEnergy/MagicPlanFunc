@@ -117,12 +117,7 @@ if __name__ == '__main__':
     floors = root.findall('interiorRoomPoints/floor')
     empty_array = [0] * len(floors)
     
-    window_data = pd.DataFrame(None, columns=['North', 'North East', 'East', 'South East', 'South', 'South West', 'West', 'North West'])
-    window_data_list = []
-
-    for i in range(5):
-        window_data_list.append(window_data.copy()) # Can't do [window_data.copy()] * 5 because this does a deep copy of window data, then shallow copies that 5 times. I just want my pointers back.
-
+    wd = pd.DataFrame(None, columns=['Window Type', 'Number of Openings', 'Number of Openings Draught Stripped', 'In Roof', 'Shading', 'Orientation', 'Area'])
 
 
     for floor in floors:
@@ -146,7 +141,7 @@ if __name__ == '__main__':
                        'qcustomfield.bebb2096q0.ofru5eoj50o']
         
         windows_doors = floor.findall('symbolInstance')
-        windows_doors = [window for window in windows_doors if 'W' in window.get('id')]
+        windows_doors = [window for window in windows_doors if ('W' in window.get('id') or 'F' in window.get('id'))]
 
         window_door_table : dict[str, list[float]] = {}
     
@@ -166,18 +161,40 @@ if __name__ == '__main__':
             
             wall_type = wall_elem.text[-1] if wall_elem != None else ''
             window_elem = floor.find(f'exploded/window[@symbolInstance="{id}"]')
+            if window_elem == None:
+                window_elem = floor.find(f'exploded/furniture[@symbolInstance="{id}"]')
             area = float(window_elem.get('height')) * float(window_elem.get('width'))
             wall_type_win_area = f'W.A. in W.T. {wall_type}'
             if wall_type_win_area not in window_door_table and wall_type_win_area != '':
                 window_door_table[wall_type_win_area] = empty_array.copy()
             window_door_table[wall_type_win_area][floor_index] += area
             
-            shading_type = window.find('values/value[@key="qcustomfield.bebb2096q0.vvvvtj3gbp8"]')
-            window_type = window.find('values/value[@key="qcustomfield.bebb2096q2"]')
-            direction = window.find('values/value[@key="qcustomfield.bebb2096q0.b8o7vbr534"]')
-            
-            if window_type != None and direction != None and \
-                not 'skylight' in window.find('values/value[@key="clonedFrom"]'):
+            shading_type : ET.Element
+            window_type : ET.Element
+            direction : ET.Element
+            openings_elem : ET.Element
+            ds_openings_elem : ET.Element
+            in_roof : bool
+
+            if not 'skylight' in window.find('values/value[@key="clonedFrom"]').text:
+                shading_type = window.find('values/value[@key="qcustomfield.bebb2096q0.vvvvtj3gbp8"]')
+                window_type = window.find('values/value[@key="qcustomfield.bebb2096q2"]')
+                direction = window.find('values/value[@key="qcustomfield.bebb2096q0.b8o7vbr534"]')
+                openings_elem = window.find('values/value[@key="qcustomfield.bebb2096q0.47fm2211clg"]')
+                ds_openings_elem = window.find('values/value[@key="qcustomfield.bebb2096q0.shu7ct5p1l8"]')
+                in_roof = False
+            else:
+                shading_type = window.find('values/value[@key="qcustomfield.91cb4548q0.d5skr1o2ol"]')
+                window_type = window.find('values/value[@key="qcustomfield.91cb4548q0.knium9uou08"]')
+                direction = window.find('values/value[@key="qcustomfield.91cb4548q0.p2meoelvuao"]')
+                openings_elem = window.find('values/value[@key="qcustomfield.91cb4548q0.073aprtkrs8"]')
+                ds_openings_elem = window.find('values/value[@key="qcustomfield.91cb4548q0.v88utngglp"]')
+                in_roof = True
+    
+            openings = 0 if openings_elem == None else int(openings_elem.text)
+            ds_openings = 0 if ds_openings_elem == None else int(ds_openings_elem.text)
+
+            if window_type != None and direction != None:
                 shading_type_text = ''
                 if shading_type == None:
                     shading_type_text = 'Average or Unknown 20 60'
@@ -185,10 +202,23 @@ if __name__ == '__main__':
                     shading_type_text = shading_type.text.replace('.', ' ')
                 direction_text = direction.text.replace('.', ' ')
                 window_type_int = int(window_type.text.split('Type.')[1][0]) - 1
-                if shading_type_text not in window_data_list[window_type_int].index:
-                    window_data_list[window_type_int].loc[shading_type_text] = [0] * 8
-                window_data_list[window_type_int].loc[shading_type_text, direction_text] += area
-
+                if ((wd['Window Type'] == window_type_int) & (wd['In Roof'] == in_roof) & \
+                    (wd['Shading'] == shading_type_text) & (wd['Orientation'] == direction_text)).any():
+                    index = wd.index[(wd['Window Type'] == window_type_int) & (wd['In Roof'] == in_roof) & \
+                             (wd['Shading'] == shading_type_text) & (wd['Orientation'] == direction_text)].to_list()[0]
+                    wd.loc[index, 'Number of Openings'] += openings
+                    wd.loc[index, 'Number of Openings Draught Stripped'] += ds_openings
+                    wd.loc[index, 'Area'] += area
+                else:
+                    wd.loc[len(wd.index)] = [
+                        window_type_int,
+                        openings,
+                        ds_openings,
+                        in_roof,
+                        shading_type_text,
+                        direction_text,
+                        area
+                    ]
 
         door_keys = ['qcustomfield.ddc14d2eq0.dge5jfv5gn8', 
                      'qcustomfield.ddc14d2eq0.afcmuvtdagg']
@@ -300,7 +330,17 @@ if __name__ == '__main__':
         wall_area_net = wall_area_gross - window_area - door_area 
 
         floor_area = float(floor.get('areaWithInteriorWallsOnly'))
+        rooflight_area = wd.loc[wd['In Roof'] == True].Area.sum()
         cieling_area = floor_area - rooflight_area
+        wd.loc[len(wd.index)] = [
+            'Totals', 
+            wd['Number of Openings'].sum(), 
+            wd['Number of Openings Draught Stripped'].sum(), 
+            'N/A', 
+            'N/A', 
+            'N/A', 
+            wd['Area'].sum()
+        ]
 
         floors_area.append(floor_area)
         cielings_area.append(cieling_area)
@@ -335,9 +375,9 @@ if __name__ == '__main__':
     
     floor_enum.append('Total')
     
-    for frame in window_data_list:
-        frame.loc['Total'] = frame.sum(numeric_only=True)
-        frame.loc[:,'Shading Total'] = frame.sum(numeric_only=True, axis=1)
+    #for frame in window_data_list:
+    #    frame.loc['Total'] = frame.sum(numeric_only=True)
+    #    frame.loc[:,'Shading Total'] = frame.sum(numeric_only=True, axis=1)
 
     summary_values = {
         'Floor Area'                      : floors_area,
@@ -364,11 +404,11 @@ if __name__ == '__main__':
     }
     table_list = ''
 
-    for i, frame in enumerate(window_data_list):
-        if i < len(window_type_lookup):
-            table_list += f'<h2>{window_type_lookup[i]} Window Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {window_type_lookup[i]}</h2>'
-        else:
-            table_list += f'<h2>Window Type {i+1} Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {i+1}</h2>'
+    #for i, frame in enumerate(window_data_list):
+    #    if i < len(window_type_lookup):
+    #        table_list += f'<h2>{window_type_lookup[i]} Window Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {window_type_lookup[i]}</h2>'
+    #    else:
+    #        table_list += f'<h2>Window Type {i+1} Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {i+1}</h2>'
     
     table_list += '</ol>'
 
@@ -381,8 +421,8 @@ if __name__ == '__main__':
         {"<h1>Colour Area Table</h1>" + create_table(colours, floor_enum, styling=styling, colour_table=True) if len(colours) > 0 else ""} \
         <h1>Wall Types</h1> \
         {create_table(wall_types, floor_enum, styling=styling)} \
-        <h1>Window Tables</h1> \
-        {table_list} \
+        <h1>Window Table</h1> \
+        {wd.to_html()} \
         <div>"""
 
     f.write(output)
