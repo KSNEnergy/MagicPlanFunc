@@ -39,14 +39,9 @@ def create_table(dict : dict[str, list[float]], headers : list,
     output += '</table>'
     return output
 
-window_data = pd.DataFrame(None, columns=['North', 'North East', 'East', 'South East', 'South', 'South West', 'West', 'North West'])
-window_data_list = []
-
-for i in range(5):
-    window_data_list.append(window_data.copy())
-
 if __name__ == '__main__':
     
+    window_type_key = 'qf.90b60e42q{}'
     lookup = {
         'LED/CFL'           : 'co-2f58f502-264c-4374-812e-567720171980',
         'Halogen Lamp'      : 'co-d829711d-35d6-4239-9cdf-66f5d107d7eb',
@@ -80,7 +75,13 @@ if __name__ == '__main__':
 
     jres = json.loads(response.content)
     root = ET.fromstring(jres['data']['plan_detail']['magicplan_format_xml'])
-        
+    window_type_lookup = []
+
+    for i in range(5):
+        type = root.find(f'values/value[@key="{window_type_key.format(i)}"]')
+        if type != None:
+            window_type_lookup.append(type.text.replace('.', ' '))
+    
     internal_width = float(root.get('interiorWallWidth'))
     extern_width_offset = internal_width * 4
     
@@ -116,6 +117,14 @@ if __name__ == '__main__':
     floors = root.findall('interiorRoomPoints/floor')
     empty_array = [0] * len(floors)
     
+    window_data = pd.DataFrame(None, columns=['North', 'North East', 'East', 'South East', 'South', 'South West', 'West', 'North West'])
+    window_data_list = []
+
+    for i in range(5):
+        window_data_list.append(window_data.copy()) # Can't do [window_data.copy()] * 5 because this does a deep copy of window data, then shallow copies that 5 times. I just want my pointers back.
+
+
+
     for floor in floors:
         
         extern_perim = 0
@@ -353,10 +362,13 @@ if __name__ == '__main__':
         'Flue'                            : flue_count,
         'Chimney'                         : chimney_count
     }
-    table_list = '<ol style="display:inline">'
+    table_list = ''
 
-    for frame in window_data_list:
-        table_list += f'<li>{frame.to_html()}</li>' if not frame.empty else '<li><b>No Windows of This Type</b></li>'
+    for i, frame in enumerate(window_data_list):
+        if i < len(window_type_lookup):
+            table_list += f'<h2>{window_type_lookup[i]} Window Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {window_type_lookup[i]}</h2>'
+        else:
+            table_list += f'<h2>Window Type {i+1} Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {i+1}</h2>'
     
     table_list += '</ol>'
 
