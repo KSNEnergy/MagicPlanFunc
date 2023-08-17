@@ -26,7 +26,7 @@ def create_table(dict : dict[str, list[float]], headers : list,
     
     for i, key in enumerate(dict):
         if colour_table:
-            output += f'<tr><td><b style="color:{key}">Colour {i}<b></td>'
+            output += f'<tr><td><font color="{key[:len(key)-2]}"><b>Colour {i}</b></font></td>'
         else:
             output += f'<tr><td>{key}</td>'
         for elem in dict[key]:
@@ -41,7 +41,6 @@ def create_table(dict : dict[str, list[float]], headers : list,
 
 if __name__ == '__main__':
     
-    window_type_key = 'qf.90b60e42q{}'
     lookup = {
         'LED/CFL'           : 'co-2f58f502-264c-4374-812e-567720171980',
         'Halogen Lamp'      : 'co-d829711d-35d6-4239-9cdf-66f5d107d7eb',
@@ -75,12 +74,6 @@ if __name__ == '__main__':
 
     jres = json.loads(response.content)
     root = ET.fromstring(jres['data']['plan_detail']['magicplan_format_xml'])
-    window_type_lookup = []
-
-    for i in range(5):
-        type = root.find(f'values/value[@key="{window_type_key.format(i)}"]')
-        if type != None:
-            window_type_lookup.append(type.text.replace('.', ' '))
     
     internal_width = float(root.get('interiorWallWidth'))
     extern_width_offset = internal_width * 4
@@ -102,23 +95,39 @@ if __name__ == '__main__':
 
     in_f_count = []
     pnc_count = []
-
+    disc_vent_count = []
+    total_vent_count = []
+    
     flue_count = []
     chimney_count = []
     flueless_count = []
 
+    rad_count = []
+    rad_trv_count = []
+    rs_count = []
+    programmer_count = []
+    er_count = []
+    esh_count = []
+
+    bath_count = []
+    ies_count = []
+    msv_count = []
+    msvp_count = []
+    msu_count = []
+
     floor_enum = ['Floor']
     floor_index = 0
+    object_floor_enum = ['Name']
     
     wall_types = {}
-    colours : dict[str, dict[int, int]]
-    colours = {}
+    colours : dict[str, dict[int, int]] = {}
 
     floors = root.findall('interiorRoomPoints/floor')
     empty_array = [0] * len(floors)
     
     wd = pd.DataFrame(None, columns=['Window Type', 'Number of Openings', 'Number of Openings Draught Stripped', 'In Roof', 'Shading', 'Orientation', 'Area'])
 
+    dt = pd.DataFrame(None, columns=['Type', 'Number of Openings', 'Number of Openings Draught Stripped', 'Glazed Area', 'Glazed Area (%)', 'Glazing Type', 'U-Value', 'Area'])
 
     for floor in floors:
         
@@ -130,15 +139,7 @@ if __name__ == '__main__':
         rooflight_area = 0
         wall_area_gross = 0
 
-        room_points_list: list[tuple[float, float, str]]
-        room_points_list = []
         room_points = floor.findall('floorRoom/point/values/value[@key="qcustomfield.e8660a0cq0.lo6b23iucno"]../../..')
-        
-        window_keys = ['qcustomfield.bebb2096q0.5s6ahr5olj', 
-                       'qcustomfield.bebb2096q0.9pqleon5rmg', 
-                       'qcustomfield.bebb2096q0.h0serf6b2po', 
-                       'qcustomfield.bebb2096q0.q05mtrjuu18', 
-                       'qcustomfield.bebb2096q0.ofru5eoj50o']
         
         windows_doors = floor.findall('symbolInstance')
         windows_doors = [window for window in windows_doors if ('W' in window.get('id') or 'F' in window.get('id'))]
@@ -147,27 +148,26 @@ if __name__ == '__main__':
     
         for window in windows_doors:
             id = window.get('id')
-
-            if window.find('values/value[@key="clonedFrom"]') == None:
-                continue
-            if 'window' not in window.find('values/value[@key="clonedFrom"]').text:
-                continue
+            symbol = window.get('symbol')
+            if symbol == None or 'window' not in symbol:
+                if window.find('values/value[@key="clonedFrom"]') == None:
+                    continue
+                if 'window' not in window.find('values/value[@key="clonedFrom"]').text:
+                    continue
+            
             wall_elem : ET.Element
             
-            for key in window_keys:
-                wall_elem = window.find(f'values/value[@key="{key}"]')
-                if wall_elem != None:
-                    break
+            wall_elem = window.find('values/value[@key="qcustomfield.bebb2096q3"]')
             
             wall_type = wall_elem.text[-1] if wall_elem != None else ''
             window_elem = floor.find(f'exploded/window[@symbolInstance="{id}"]')
             if window_elem == None:
                 window_elem = floor.find(f'exploded/furniture[@symbolInstance="{id}"]')
             area = float(window_elem.get('height')) * float(window_elem.get('width'))
-            wall_type_win_area = f'W.A. in W.T. {wall_type}'
-            if wall_type_win_area not in window_door_table and wall_type_win_area != '':
-                window_door_table[wall_type_win_area] = empty_array.copy()
-            window_door_table[wall_type_win_area][floor_index] += area
+            if wall_type not in window_door_table and wall_type != '':
+                window_door_table[wall_type] = empty_array.copy()
+            if wall_type != '':
+                window_door_table[wall_type][floor_index] += area
             
             shading_type : ET.Element
             window_type : ET.Element
@@ -175,8 +175,9 @@ if __name__ == '__main__':
             openings_elem : ET.Element
             ds_openings_elem : ET.Element
             in_roof : bool
-
-            if not 'skylight' in window.find('values/value[@key="clonedFrom"]').text:
+            
+            cloned_from = window.find('values/value[@key="clonedFrom"]')
+            if cloned_from == None or not 'skylight' in window.find('values/value[@key="clonedFrom"]').text:
                 shading_type = window.find('values/value[@key="qcustomfield.bebb2096q0.vvvvtj3gbp8"]')
                 window_type = window.find('values/value[@key="qcustomfield.bebb2096q2"]')
                 direction = window.find('values/value[@key="qcustomfield.bebb2096q0.b8o7vbr534"]')
@@ -220,31 +221,80 @@ if __name__ == '__main__':
                         area
                     ]
 
-        door_keys = ['qcustomfield.ddc14d2eq0.dge5jfv5gn8', 
-                     'qcustomfield.ddc14d2eq0.afcmuvtdagg']
+        door_question_key = {
+            'g_t' : {
+                'Solid.Exposed.Door.30.60.Glazed' : 'qcustomfield.ddc14d2eq0.vmacape1ks',
+                'Solid.Semi.Exposed.Glazed.Door.30.60.Glazed' : 'qcustomfield.ddc14d2eq0.ij3dcce5clo'
+            },
+            'u_v' : {
+                'Solid.Exposed.Door' : 'qcustomfield.ddc14d2eq0.0v6l9n35trg',
+                'Solid.Semi.Exposed.Door' : 'qcustomfield.ddc14d2eq0.pl6roqhqj3o',
+                'Solid.Exposed.Door.30.60.Glazed' : '',
+                'Solid.Semi.Exposed.Glazed.Door.30.60.Glazed' : '',
+                'Metal.Uninsulated.Garage.Door' : 'qcustomfield.ddc14d2eq0.o51v05s6veg',
+                'Certified.Door.Data' : '',
+            },
+            'g_a' : {
+                'Solid.Exposed.Door.30.60.Glazed' : 'qcustomfield.ddc14d2eq0.7r2dd1lsr7o',
+                'Solid.Semi.Exposed.Glazed.Door.30.60.Glazed' : 'qcustomfield.ddc14d2eq0.e6oefhpmmjo'
+            }
+        }
 
         for door in windows_doors:
             id = door.get('id')
-            if door.find('values/value[@key="clonedFrom"]') == None:
-                continue
-            if 'door' not in door.find('values/value[@key="clonedFrom"]').text:
-                continue
-            
-            wall_elem : ET.Element
-            for key in door_keys:
-                wall_elem = door.find(f'values/value[@key="{key}"]')
-                if wall_elem != None:
-                    break
-            if wall_elem == None:
-                continue
 
-            wall_type = wall_elem.text[-1]
+            symbol = door.get('symbol')
+            if symbol == None or 'door' not in symbol:
+                if door.find('values/value[@key="clonedFrom"]') == None:
+                    continue
+                if 'door' not in door.find('values/value[@key="clonedFrom"]').text:
+                    continue
+            
+            door_type = door.find('values/value[@key="qcustomfield.ddc14d2eq0.31bdk91s35o"]')
+            if door_type == None:
+                continue
+            door_type_text = door_type.text
+
+            u_value = door.find(f'values/value[@key="{door_question_key["u_v"][door_type_text]}"]')
+            n_openings = door.find('values/value[@key="qcustomfield.ddc14d2eq0.lko7143kejg"]')
+            n_openings_ds = door.find('values/value[@key="qcustomfield.ddc14d2eq0.84vs7q5icu"]')
+
+            glazed_area : ET.Element = None
+            glazing_type : ET.Element = None
+            if 'Glazed' in door_type_text:
+                glazed_area = door.find(f'values/value[@key="{door_question_key["g_a"][door_type_text]}"]')
+                glazing_type = door.find(f'values/value[@key="{door_question_key["g_t"][door_type_text]}"]')
+            
+            u_value_text = u_value.text if u_value != None else 'N/A'
+            glazed_area_val = float(glazed_area.text) if glazed_area != None else 0
+            glazing_type_text = glazing_type.text if glazing_type != None else 'N/A'
+            n_openings_int = int(n_openings.text) if n_openings != None else 0
+            n_openings_ds_int = int(n_openings_ds.text) if n_openings_ds != None else 0
+
             door_elem = floor.find(f'exploded/door[@symbolInstance="{id}"]')
             area = float(door_elem.get('height')) * float(door_elem.get('width'))
-            w_t_area = f'D.A. in W.T. {wall_type}'
-            if w_t_area not in window_door_table:
-                window_door_table[w_t_area] = empty_array.copy()
-            window_door_table[w_t_area][floor_index] += area
+            door_area += area
+            
+            dt.loc[len(dt.index)] = [
+                door_type_text.replace('.', ' '), 
+                n_openings_int,
+                n_openings_ds_int,
+                glazed_area_val,
+                glazed_area_val/area * 100,
+                glazing_type_text,
+                u_value_text,
+                area
+            ]
+
+            wall_elem : ET.Element
+            wall_elem = door.find(f'values/value[@key="qcustomfield.ddc14d2eq1"]')
+            if wall_elem == None:
+                continue
+            
+            wall_type = wall_elem.text[-1]
+            if wall_type not in window_door_table:
+                window_door_table[wall_type] = empty_array.copy()
+            window_door_table[wall_type][floor_index] += area
         
         
         for room in room_points:
@@ -259,7 +309,7 @@ if __name__ == '__main__':
                 perim = f'{w_type} Perimeter'
                 x1 = float(point.get('snappedX'))
                 y1 = float(point.get('snappedY'))
-                next_index = all_points.index(point) + 2 #Elemet Tree Indexes from 1, this index returns the index from 0, to get the next element we add 2.
+                next_index = all_points.index(point) + 2 #Element Tree Indexes from 1, this index returns the index from 0, to get the next element we add 2.
                 next = room.find(f'point[{next_index}]')
                 if next == None:
                     next = room.find('point[1]')
@@ -294,9 +344,6 @@ if __name__ == '__main__':
         wall_area_gross -= wall_types['Party Wall Area'][floor_index] if 'Party Wall Area' in wall_types else 0
         
         for window in floor.findall('exploded/window'):
-            if 'window count' not in window_door_table:
-                window_door_table['Window Count'] = empty_array.copy()
-            window_door_table['Window Count'][floor_index] += 1
             window_area += float(window.get('height')) * float(window.get('width'))                  
         
         for room in floor.findall('floorRoom/values/value[@key="ground.color"]../..'):
@@ -307,40 +354,26 @@ if __name__ == '__main__':
             colours[colour][floor_index] += area
         
         for type in window_door_table:
-            if type[-1].isnumeric() and 'A.' in type:
-                window_door_area = window_door_table[type][floor_index]
-                gross_area_key = f'{type[-1]} Area Gross'
-                net_area_key = f'{type[-1]} Area Net'
-                try:
-                    area : float
-                    if net_area_key in wall_types:
-                        area = wall_types[net_area_key][floor_index]
-                    else:
-                        wall_types[net_area_key] = empty_array.copy() 
-                        area = wall_types[gross_area_key][floor_index]
-                    net_area = area - window_door_area
-                    wall_types[net_area_key][floor_index] = net_area
-                except:
-                    print('Could not find wall type in wall_type dict')
+            window_door_area = window_door_table[type][floor_index]
+            gross_area_key = f'{type} Area Gross'
+            net_area_key = f'{type} Area Net'
+            try:
+                area : float
+                if net_area_key in wall_types:
+                    area = wall_types[net_area_key][floor_index]
+                else:
+                    wall_types[net_area_key] = empty_array.copy() 
+                    area = wall_types[gross_area_key][floor_index]
+                net_area = area - window_door_area
+                wall_types[net_area_key][floor_index] = net_area
+            except:
+                print('Could not find wall type in wall_type dict')
         
-        for key in window_door_table:
-            if 'D.A.' in key:
-                door_area += sum(window_door_table[key])
-        
-        wall_area_net = wall_area_gross - window_area - door_area 
+        wall_area_net = wall_area_gross - sum([window_door_table[key][floor_index] for key in window_door_table])
 
         floor_area = float(floor.get('areaWithInteriorWallsOnly'))
         rooflight_area = wd.loc[wd['In Roof'] == True].Area.sum()
         cieling_area = floor_area - rooflight_area
-        wd.loc[len(wd.index)] = [
-            'Totals', 
-            wd['Number of Openings'].sum(), 
-            wd['Number of Openings Draught Stripped'].sum(), 
-            'N/A', 
-            'N/A', 
-            'N/A', 
-            wd['Area'].sum()
-        ]
 
         floors_area.append(floor_area)
         cielings_area.append(cieling_area)
@@ -352,32 +385,86 @@ if __name__ == '__main__':
         windows_area.append(window_area)
         floor_enum.append(str(floor_index))
 
-        led_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["LED/CFL"]}\']')))
-        lf_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Linear Fluorescent"]}\']')))
-        hl_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Halogen Lamp"]}\']')))
-        inc_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Incandescent"]}\']')))
-        hlv_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Halogen LV"]}\']')))
-        
-        flueless_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Flueless"]}\']')))
-        chimney_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Chimney"]}\']')))
-        flue_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Flue"]}\']')))
+        if floor.find('name').text in ['Ground Floor', '1st Floor', '2nd Floor', '3rd Floor', '4th Floor']:
+            led_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["LED/CFL"]}\']')))
+            lf_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Linear Fluorescent"]}\']')))
+            hl_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Halogen Lamp"]}\']')))
+            inc_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Incandescent"]}\']')))
+            hlv_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["Halogen LV"]}\']')))
 
-        in_f_count.append(
-            len(floor.findall(f'symbolInstance[@symbol=\'{lookup["NMV"]}\']')) + 
-            len(floor.findall(f'symbolInstance[@symbol=\'{lookup["EMV"]}\']')) + 
-            len(floor.findall(f'symbolInstance[@symbol=\'{lookup["DCH"]}\']')) + 
-            len(floor.findall(f'symbolInstance[@symbol=\'{lookup["EMVB"]}\']')) + 
-            len(floor.findall(f'symbolInstance[@symbol=\'{lookup["ECHB"]}\']'))
-        )
+            flueless_count.append(len(floor.findall('symbolInstance/values/value[@key="qcustomfield.122c26d158"]')))
+            default_flues = len(floor.findall('symbolInstance/values/value[@key="qcustomfield.f8a9c5deq0.5i3vasj3i78"]'))
+            non_default = floor.findall('symbolInstance/values/value[@key="qcustomfield.3f240a7858"]')
+            non_default_flues = len(
+                list(
+                    filter(
+                        lambda x: True if x.text == 'Flue' else False,
+                        non_default
+                    )
+                )
+            )
 
-        pnc_count.append(len(floor.findall(f'symbolInstance[@symbol=\'{lookup["EPV"]}\']')))
+            flue_count.append(non_default_flues + default_flues)
+            chimney_count.append(len(non_default) - non_default_flues)
+
+
+            in_f_count.append(
+                len(floor.findall(f'symbolInstance[@symbol=\'{lookup["NMV"]}\']')) + 
+                len(floor.findall(f'symbolInstance[@symbol=\'{lookup["EMV"]}\']')) + 
+                len(floor.findall(f'symbolInstance[@symbol=\'{lookup["DCH"]}\']')) + 
+                len(floor.findall(f'symbolInstance[@symbol=\'{lookup["EMVB"]}\']')) + 
+                len(floor.findall(f'symbolInstance[@symbol=\'{lookup["ECHB"]}\']'))
+            )
+
+            vents = floor.findall(f'symbolInstance[@symbol=\'{lookup["EPV"]}\']')
+            pnc_count.append(
+                len(
+                    list(
+                        filter(lambda x: False if x.find('values/value[@key="qcustomfield.8d83fdcaq0.46r9ir0vvd"]') != None and \
+                            x.find('values/value[@key="qcustomfield.8d83fdcaq0.46r9ir0vvd"]').text == '1' else True, 
+                            vents
+                        )
+                    )
+                )
+            )
+            
+            discounted_vents = len(vents) - pnc_count[-1]
+            disc_vent_count.append(discounted_vents)
+            total_vent_count.append(len(vents))
+
+            rad_count.append(len(floor.findall('symbolInstance[@symbol="co-afc6eed1-0e5c-4189-b955-4d98f616baa3"]') + 
+                                 floor.findall('symbolInstance[@symbol="co-a2b10df6-429a-49b7-bfbf-8824a91c6e39"]')))
+            rad_trv_count.append(len(floor.findall('symbolInstance[@symbol="co-a2b10df6-429a-49b7-bfbf-8824a91c6e39"]')))
+            rs_count.append(len(floor.findall('symbolInstance[@symbol="co-8e288bb1-7947-41a0-9224-5d1d32bbacd4"]')))
+            programmer_count.append(len(floor.findall('symbolInstance[@symbol="co-88d188fc-8cd9-413f-8dce-6a5d4a987047"]')))
+            er_count.append(len(floor.findall('symbolInstance[@symbol="co-e49d64d3-e0f2-47c9-bfc3-dfd8ece4e61c"]')))
+            esh_count.append(len(floor.findall('symbolInstance[@symbol="co-30b97448-fe04-4202-b701-2f54cd5ad4b0"]')))
+
+            bath_count.append(len(floor.findall('symbolInstance[@symbol="co-064a7f28-56e6-4d08-bfa5-d9f0aae885a1"]') + 
+                                  floor.findall('symbolInstance[@symbol="co-9fe51e91-80c4-4114-8ce8-3cdb3eaadb86"]') +
+                                  floor.findall('symbolInstance[@symbol="co-bdc6fc6b-7ab1-4b00-b6f3-2aa346c91d14"]') + 
+                                  floor.findall('symbolInstance[@symbol="co-7d191d92-4a25-4c60-b2f0-65c9921b386d"]')
+                                ))
+            
+            ies_count.append(len(floor.findall('symbolInstance[@symbol="co-9fe51e91-80c4-4114-8ce8-3cdb3eaadb86"]') + 
+                                 floor.findall('symbolInstance[@symbol="co-f6f1173a-8abe-4a31-9f1f-0eb2ff93e00f"]')
+                                ))
+
+            mixer_showers = floor.findall('symbolInstance[@symbol="co-bdc6fc6b-7ab1-4b00-b6f3-2aa346c91d14"]') + \
+                            floor.findall('symbolInstance[@symbol="co-8b8a81b5-b070-4d65-ae52-3cd5262c0215"]')
+            
+            msv_count.append(len([shower for shower in mixer_showers if shower.find('values/value[@key="qcustomfield.22ba7c63q0.bja6s075v1o"]') != None and shower.find('values/value[@key="qcustomfield.22ba7c63q0.bja6s075v1o"]').text == 'Vented']))
+            
+            msvp_count.append(len(floor.findall('symbolInstance[@symbol="co-7d191d92-4a25-4c60-b2f0-65c9921b386d"]') + 
+                                  floor.findall('symbolInstance[@symbol="co-acd8e516-6f7a-4397-a890-fde87994fb80"]')  
+                                ))
+            msu_count.append(len([shower for shower in mixer_showers if shower.find('values/value[@key="qcustomfield.22ba7c63q0.bja6s075v1o"]') != None and shower.find('values/value[@key="qcustomfield.22ba7c63q0.bja6s075v1o"]').text == 'Unvented']))
+
+            object_floor_enum += [floor.find('name').text]
+
         floor_index += 1
     
     floor_enum.append('Total')
-    
-    #for frame in window_data_list:
-    #    frame.loc['Total'] = frame.sum(numeric_only=True)
-    #    frame.loc[:,'Shading Total'] = frame.sum(numeric_only=True, axis=1)
 
     summary_values = {
         'Floor Area'                      : floors_area,
@@ -390,40 +477,85 @@ if __name__ == '__main__':
         'Perimeter'                       : floors_perims,
     }
 
-    deap_values = {
+    shower_bath_table = {
+        'Count of Baths'                            : bath_count,
+        'Count of Electric Showers'                 : ies_count,
+        'Count of Mixer Showers - Vented'           : msv_count,
+        'Count of Mixer Showers - Vented + Pump'    : msvp_count,
+        'Count of Mixer Showers - Unvented'         : msu_count
+    }
+
+    lighting_table = {
         'LED/CFL'                         : led_count,
         'Halogen Lamp'                    : hl_count,
         'Halogen LV'                      : hlv_count,
         'Linear Fluorescent'              : lf_count,
         'Incandescent'                    : inc_count,
+    }
+
+    ventilation_table = {
         'Intermittent Fan Count'          : in_f_count,
-        'Passive Non-Closable (Add Note)' : pnc_count,
+        'Passive Non-Closable'            : pnc_count,
+        'Discounted Vents'                : disc_vent_count,
+        'Total Vent Count'                : total_vent_count,
         'Flueless Combustion Room Heater' : flueless_count,
         'Flue'                            : flue_count,
         'Chimney'                         : chimney_count
     }
-    table_list = ''
-
-    #for i, frame in enumerate(window_data_list):
-    #    if i < len(window_type_lookup):
-    #        table_list += f'<h2>{window_type_lookup[i]} Window Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {window_type_lookup[i]}</h2>'
-    #    else:
-    #        table_list += f'<h2>Window Type {i+1} Table</h2>{frame.to_html()}' if not frame.empty else f'<h2>No Windows of type {i+1}</h2>'
     
-    table_list += '</ol>'
+    space_heating_table = {
+        'Count of Radiators'                : rad_count,
+        'Count of Radiators With TRVs'      : rad_trv_count,
+        'Percentage of Radiators With TRVs' : map(lambda a, b : (a / b) * 100 if b != 0 else 0, rad_trv_count, rad_count),
+        'Count of Programmers'              : programmer_count,
+        'Count of Room Stats'               : rs_count,
+        'Count of Electric Radiators'       : er_count,
+        'Count of Electric Storage Heaters' : esh_count
+    }
+
+    wd.loc[len(wd.index)] = [
+        'Totals', 
+        wd['Number of Openings'].sum(), 
+        wd['Number of Openings Draught Stripped'].sum(), 
+        'N/A', 
+        'N/A', 
+        'N/A', 
+        wd['Area'].sum()
+    ]
+
+    dt.loc[len(dt.index)] = [
+        'Totals',
+        dt['Number of Openings'].sum(),
+        dt['Number of Openings Draught Stripped'].sum(),
+        dt['Glazed Area'].sum(),
+        'N/A',
+        'N/A',
+        'N/A',
+        dt['Area'].sum()
+    ]
+    
+    object_floor_enum += ['Total']
 
     f = open('{}.html'.format(root.get('name')).replace(' ', ''), 'w')
     styling = "border=\"1\""
     output = f"""<div><h1>Plan Summary Table</h1> \
         {create_table(summary_values, floor_enum, styling=styling, do_not_sum=["Floor Height"])} \
-        <h1>Objects Table</h1> \
-        {create_table(deap_values, floor_enum, styling=styling)} \
+        <h1>Lighting Table</h1> \
+        {create_table(lighting_table, object_floor_enum, styling=styling)} \
+        <h1>Ventilation Table</h1> \
+        {create_table(ventilation_table, object_floor_enum, styling=styling)} \
+        <h1>Space Heating Table</h1> \
+        {create_table(space_heating_table, object_floor_enum, styling=styling, do_not_sum=['Percentage of Radiators With TRVs'])} \
+        <h1>Shower and Bath Table</h1>
+        {create_table(shower_bath_table, object_floor_enum, styling=styling)}
         {"<h1>Colour Area Table</h1>" + create_table(colours, floor_enum, styling=styling, colour_table=True) if len(colours) > 0 else ""} \
         <h1>Wall Types</h1> \
         {create_table(wall_types, floor_enum, styling=styling)} \
         <h1>Window Table</h1> \
         {wd.to_html()} \
-        <div>"""
+        <h1>Door Table</h1> \
+        {dt.to_html()} \
+        </div>"""
 
     f.write(output)
     f.close()
