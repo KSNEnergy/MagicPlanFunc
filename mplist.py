@@ -27,12 +27,6 @@ if __name__ == '__main__':
         json_data['data']['plans'].extend(new_data['data']['plans'])
     
     data_complete = json.dumps(json_data)
-    f = open('projects_list.json', 'w')
+    f = open('data/projects_list.json', 'w')
     f.write(data_complete)
     f.close()
-
-
-
-        
-
-        
