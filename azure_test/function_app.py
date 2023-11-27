@@ -656,6 +656,22 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
 
         blob_client.upload_blob(json_data)
 
+        #**************************************
+        json_data_NEW = json.dumps({
+            'email' : email,
+            'name'  : plan_name, 
+            'table' : output
+        })
+
+        local_file_name = str(uuid.uuid4()) + '.json'
+
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=local_file_name)
+
+        blob_client.upload_blob(json_data_NEW)
+
+        #**************************************
+
+    
     except Exception as ex:
         logging.error(ex)
         print(f"Exception: {ex}")
