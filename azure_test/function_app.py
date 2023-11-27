@@ -638,7 +638,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
             {create_table(roof_table, ['Name', 'Sum'], styling=styling, do_not_sum=['All'])} \
             </div>"""
         '''
-        output = xml
+        output = 'test'
         
         account_url = os.environ['AZ_STR_URL']
         default_credential = DefaultAzureCredential()
