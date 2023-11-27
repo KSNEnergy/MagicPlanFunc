@@ -637,6 +637,8 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
             {create_table(roof_table, ['Name', 'Sum'], styling=styling, do_not_sum=['All'])} \
             </div>"""
 
+        output = xml
+        
         account_url = os.environ['AZ_STR_URL']
         default_credential = DefaultAzureCredential()
         blob_service_client = BlobServiceClient(account_url, credential=default_credential)
@@ -648,8 +650,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
         json_data = json.dumps({
             'email' : email,
             'name'  : plan_name, 
-            'table' : output,
-            'xml' : xml
+            'table' : output
         })
 
         local_file_name = str(uuid.uuid4()) + '.json'
@@ -661,4 +662,18 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as ex:
         logging.error(ex)
         print(f"Exception: {ex}")
+
+        plan_name = 'error'
+        output = ex
+        json_data = json.dumps({
+            'email' : email,
+            'name'  : plan_name, 
+            'table' : output,
+            })
+
+        local_file_name = str(uuid.uuid4()) + '.json'
+
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=local_file_name)
+
+        blob_client.upload_blob(json_data)
     return func.HttpResponse(status_code=200)
