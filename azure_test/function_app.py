@@ -49,6 +49,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
     try:
 
         email = req._HttpRequest__params['email']
+        xml = req._HttpRequest__params['xml'] # GT
         
         root : ET.Element
         with urllib.request.urlopen(req._HttpRequest__params['xml']) as f:
@@ -647,7 +648,8 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
         json_data = json.dumps({
             'email' : email,
             'name'  : plan_name, 
-            'table' : output
+            'table' : output,
+            'xml' : xml
         })
 
         local_file_name = str(uuid.uuid4()) + '.json'
