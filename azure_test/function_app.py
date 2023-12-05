@@ -9,6 +9,9 @@ import urllib.request
 import pandas as pd
 import xml.etree.ElementTree as ET
 
+
+# test edit
+
 MAX_REAL_FLOORS = 10
 
 def cart_distance(p1 : tuple[float, float], p2 : tuple[float, float]) -> float:
@@ -669,7 +672,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
         json_data = json.dumps({
             'email' : email,
             'name'  : plan_name, 
-            'table' : output,
+            'table' : output
             })
 
         local_file_name = str(uuid.uuid4()) + '.json'
