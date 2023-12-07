@@ -10,7 +10,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 
 
-# test edit
+
 
 MAX_REAL_FLOORS = 10
 
@@ -616,7 +616,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
         imaginary_floor_enum += ['Total']
 
         styling = "border=\"1\""
-        '''
+  
         output = f"""\
             <h1>Summary Table</h1> \
             {create_table(summary_values, ['Name', 'Sum'], styling=styling, do_not_sum=['All'])} \
@@ -640,8 +640,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
             <h1>Roof Table</h1> \
             {create_table(roof_table, ['Name', 'Sum'], styling=styling, do_not_sum=['All'])} \
             </div>"""
-        '''
-        output = 'test'
+
         
         account_url = os.environ['AZ_STR_URL']
         default_credential = DefaultAzureCredential()
