@@ -426,7 +426,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
                         print('Could not find wall type in wall_type dict')
 
                 imaginary_floor_enum.append(floor_name)
-                wall_area_net = wall_area_gross - sum([window_door_table[key][floor_index] for key in window_door_table])
+                wall_area_net = wall_area_gross - sum([window_door_table[key][floor_index_adj] for key in window_door_table])
                 walls_area_net.append(wall_area_net)
 
             if floor_num != None and floor_num < MAX_REAL_FLOORS:
