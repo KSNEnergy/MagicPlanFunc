@@ -423,7 +423,7 @@ def test_function(req: func.HttpRequest) -> func.HttpResponse:
                         net_area = area - window_door_area
                         wall_types[net_area_key][floor_index_adj] = net_area
                     except:
-                        print('Could not find wall type in wall_type dict')
+                        print('Could not find wall type in wall_type dict') # does this occur if wall types don't match corresponding floor?
 
                 imaginary_floor_enum.append(floor_name)
                 wall_area_net = wall_area_gross - sum([window_door_table[key][floor_index_adj] for key in window_door_table])
